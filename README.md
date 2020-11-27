@@ -1,5 +1,7 @@
 # theHandy_Plex
 
+REQUIRES PLEX PASS
+
 # How to setup
 Run a plex server.
 
@@ -11,6 +13,8 @@ Get your handy key.
 Edit both values into plex.py
 
 Run plex.py on the same machine as the plex server.
+
+Add a webhook with http://127.0.0.1:8008 as the address.
 
 # Known bugs
 There is no webhook call for media scrubbing, so to scrub you need to pause and play it again, for the script to detect it.
