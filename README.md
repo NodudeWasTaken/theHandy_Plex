@@ -11,7 +11,7 @@ Get your handy key.
 
 Copy this directory (most importantly handy.py and plex.py)
 
-With python pip run "pip install -r requirements.txt"
+With python 3 pip run "pip install -r requirements.txt"
 
 Edit both values into plex.py
 
