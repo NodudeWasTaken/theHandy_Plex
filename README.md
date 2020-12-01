@@ -37,6 +37,10 @@ There is no webhook call for media scrubbing, so to scrub you need to pause and 
 
 Offset is finicky, try stopping and starting.
 
+Slow initialization, since the script attempts to find the latency the handy's api, takes about 20s~.
+
+Custom transcoding sometimes excludes original file path, so the script is unable to find the funscript.
+
 viewOffset bugs:
 
 If you set the videotime to below 1 minute, plex excludes viewOffset, which is then set to 0 instead.
