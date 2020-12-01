@@ -1,0 +1,13 @@
+[Unit]
+Description=Plex TheHandy Service
+After=network.target plexmediaserver.service
+
+[Service]
+User=niller
+Group=niller
+WorkingDirectory=/a/folder/where/your/install/is
+ExecStart=python3 plex.py
+
+[Install]
+WantedBy=multi-user.target
+
