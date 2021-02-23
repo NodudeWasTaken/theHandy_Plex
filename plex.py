@@ -59,6 +59,7 @@ def index():
 							viewOffset = int(i.attributes["viewOffset"].value)
 							print(viewOffset)
 							print(database[unique_id].onPlay(viewOffset))
+							break
 		if (parsed["event"] == "media.stop"):
 			del database[unique_id]
 
