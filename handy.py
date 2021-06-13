@@ -1,4 +1,4 @@
-import requests, json, sys, html, time, os
+import requests, json, sys, html, time, os, re
 
 class TheHandy:
 	def __init__(self):
@@ -107,6 +107,9 @@ def upload_funscript(input_file):
 			convert_funscript_to_csv(old_input_file, input_file)
 
 	filename = input_file[input_file.rfind("/")+1:]
+
+	#Fix weird naming bug
+	filename = "".join(re.findall(r"(\w+|\.|\ )", filename))
 
 	multipart_form_data = {
 		"syncFile": (filename, open(input_file, "rb")),
