@@ -115,7 +115,7 @@ def upload_funscript(input_file):
 		"syncFile": (filename, open(input_file, "rb")),
 	}
 
-	response = requests.post("https://www.handyfeeling.com/api/sync/upload", files=multipart_form_data)
+	response = requests.post("https://www.handyfeeling.com/api/sync/upload?local=true", files=multipart_form_data)
 
 	#TODO: 413 Request entity too large
 	if (response.status_code != 200):

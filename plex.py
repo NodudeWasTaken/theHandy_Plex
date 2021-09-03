@@ -1,26 +1,43 @@
-from flask import Flask, request
+from flask import Flask, request, send_file
 from xml.dom import minidom
-from handy import TheHandy, upload_funscript
+from handyv2 import TheHandy
 import json, time, requests, os, sys
 
 app = Flask(__name__)
-#Set this to anything else
-app.secret_key = "much_secret_such_wow"
 
-#Your plex token
-plex_token = "YOUR_PLEX_TOKEN"
-#Your handy key
-handy_key = "YOUR_HANDY_KEY"
-server_ip = "127.0.0.1" #TODO: Get from HTTP GET ip
+settings = {
+	"app_secret": "REPLACE_ME_WITH_SOMETHING",
+	"plex_token": "REPLACE_ME",
+	"handy_key": "REPLACE_ME",
+	"plex_ip": "REPLACE_ME",
+	"access_ip": "REPLACE_ME_if_you_want",
+	"view_offset": 0,
+}
 
-default_viewoffset = 50 #50ms
+if not os.path.exists("settings.json"):
+	with open("settings.json", "w") as f:
+		json.dump(settings, f, indent="\t")
+	print("Please edit settings.json!")
+	sys.exit(0)
+
+with open("settings.json") as f:
+	settings = json.load(f)
+	if ("REPLACE_ME" in [
+		settings["plex_token"],
+		settings["handy_key"],
+		settings["plex_ip"],
+	]):
+		print("Please edit settings.json!")
+		sys.exit(1) #Its an error this time
+
+app.secret_key = settings["app_secret"]
 
 #Very real database, dont question it
 database = {}
 
 def test():
 	#Test plex connection
-	data_url = "http://{}:32400?X-Plex-Token={}".format(server_ip,plex_token)
+	data_url = "http://{}?X-Plex-Token={}".format(settings["plex_ip"],settings["plex_token"])
 	with requests.get(data_url) as r:
 		if (r.status_code != 200):
 			raise Exception("HTTP Error when connecting to plex server {}".format(r.status_code))
@@ -33,9 +50,9 @@ test()
 
 #Return video file path
 def plex_getvideofile(video_key):
-	data_url = "http://{}:32400{}?X-Plex-Token={}".format(server_ip,video_key, plex_token)
+	data_url = "http://{}{}?X-Plex-Token={}".format(settings["plex_ip"], video_key, settings["plex_token"])
 	with requests.get(data_url) as r: #BUG: KeyError on non-video
-		print(r.text)
+		print("Plex video data", r.text)
 		with minidom.parseString(r.text) as xmldoc:
 			part = xmldoc.getElementsByTagName("Part")
 			if (len(part) > 0):
@@ -45,49 +62,86 @@ def plex_getvideofile(video_key):
 
 #Return viewOffset in ms
 def plex_gettime(player_uuid):
-	data_url = "http://{}:32400/status/sessions?X-Plex-Token={}".format(server_ip, plex_token)
+	data_url = "http://{}/status/sessions?X-Plex-Token={}".format(settings["plex_ip"], settings["plex_token"])
 	with requests.get(data_url) as r:
+		#print("Plex session data", r.text)
 		with minidom.parseString(r.text) as xmldoc:
 			part = xmldoc.getElementsByTagName("Video")
 			for i in part:
-				if (i.getElementsByTagName("Player")[0].attributes["machineIdentifier"].value) == player_uuid:
+				playerelm = i.getElementsByTagName("Player")[0]
+				if (playerelm.attributes["machineIdentifier"].value) == player_uuid:
 					viewOffset = int(i.attributes["viewOffset"].value)
 					return viewOffset
 
 	return None
 
+#Return if the player is on the same network as the server (that we assume the script is running on aswell)
+def plex_islocal(player_uuid):
+	data_url = "http://{}/status/sessions?X-Plex-Token={}".format(settings["plex_ip"], settings["plex_token"])
+	with requests.get(data_url) as r:
+		print("Plex session data", r.text)
+		with minidom.parseString(r.text) as xmldoc:
+			part = xmldoc.getElementsByTagName("Video")
+			for i in part:
+				playerelm = i.getElementsByTagName("Player")[0]
+				if (playerelm.attributes["machineIdentifier"].value) == player_uuid:
+					return playerelm.attributes["local"].value == "1"
+
+	return False
+
+scripts = {} #memory leak yeah
+@app.route("/script/<name>", methods=["GET"])
+def script_dir(name):
+	return send_file(scripts[name])
+
 @app.route("/", methods=["POST"])
 def index():
 	parsed = json.loads(request.form["payload"]) 
-	unique_id = "{}_{}".format(parsed["Player"]["uuid"], parsed["Metadata"]["ratingKey"]) #TODO: Use userid instead
+	player_uuid = parsed["Player"]["uuid"]
 
-	print(json.dumps(parsed, indent='\t'))
-	print(parsed["event"])
+	print("Plex json data", json.dumps(parsed, indent='\t'))
+	print("Plex event type", parsed["event"])
 
 	#New video event
 	if (parsed["event"] in ["media.resume", "media.play"]):
-		if not unique_id in database:
+		if not player_uuid in database:
 			print("Media playback event fired")
 			video_file = plex_getvideofile(parsed["Metadata"]["key"])
 			if (video_file):
-				print("Found video file {}".format(video_file))
+				print("Found video file", video_file)
+				#TODO: csv support
 				script_path = video_file[:video_file.rfind(".")] + ".funscript"
 				if (os.path.exists(script_path)):
 					print("Has funscript")
-					database[unique_id] = TheHandy()
-					script_url = upload_funscript(script_path)
+					database[player_uuid] = TheHandy()
 					#TODO: What if this fails
-					print(database[unique_id].onReady(handy_key, script_url))
-					print(database[unique_id].setOffset(default_viewoffset))
+					#TODO: Keep instances as to avoid recalculating delay
+					print("onReady", database[player_uuid].onReady(settings["handy_key"]))
 
-		viewOffset = plex_gettime(parsed["Player"]["uuid"])
-		print(database[unique_id].onPlay(viewOffset))
-	
-	if unique_id in database:
+					scriptUrl = None
+					if (settings["access_ip"] != "REPLACE_ME" and plex_islocal(player_uuid)):
+						print("isLocal", True)
+						script_path, name = database[player_uuid].path_to_name(script_path)
+						scriptUrl = "http://{}/script/{}".format(settings["access_ip"],name)
+						scripts[name] = script_path
+					else:
+						print("isLocal", False)
+						script_path, scriptUrl = database[player_uuid].upload_funscript(script_path)
+					print("scriptUrl", scriptUrl)
+
+					print("setScript", database[player_uuid].setScript(scriptUrl))
+					if (settings["view_offset"] != 0):
+						print("setOffset", database[player_uuid].setOffset(settings["view_offset"]))
+
+		viewOffset = plex_gettime(player_uuid)
+		print("onPlay", database[player_uuid].onPlay(viewOffset))
+
+	if player_uuid in database:
 		if (parsed["event"] in ["media.pause", "media.stop"]):
-			print(database[unique_id].onPause())
+			print("onPause", database[player_uuid].onPause())
 		if (parsed["event"] in ["media.stop"]):
-			del database[unique_id]
+			del database[player_uuid]
+			#TODO: Delete script path from scripts
 
 	return "OK"
 
