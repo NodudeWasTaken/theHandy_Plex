@@ -7,6 +7,12 @@ class TheHandy:
 		self.URL_BASE = "https://www.handyfeeling.com/" #TODO: Use staging instead of www when its fixed
 		self.URL_API_ENDPOINT = "api/handy/v2"
 
+	def quickCheck(self, r):
+		assert r.status_code in range(200,299)
+		rtn = json.loads(r.text)
+		assert rtn["result"] != -1 if "result" in rtn else True
+		return rtn
+
 	#Set theHandy operation mode to video sync
 	def onReady(self, connectionKey):
 		"""
@@ -25,8 +31,8 @@ class TheHandy:
 		}) #HAMP 0, HSSP 1, HDSP 2, MAINTENANCE 3
 
 		with requests.put(self.urlAPI + "/mode", data=data, headers=self.connectionHeader) as r:
-			#TODO: Assert correct response on returns
-			print("Mode request: {}".format(r.text))
+			rtn = self.quickCheck(r)
+			print("Mode request: {}".format(rtn))
 
 		self.deviceSync()
 		self.updateServerTime()
@@ -46,7 +52,8 @@ class TheHandy:
 		data = json.dumps(data)
 
 		with requests.put(self.urlAPI + "/hssp/setup", data=data, headers=self.connectionHeader) as r:
-			return json.loads(r.text)
+			rtn = self.quickCheck(r)
+			return rtn
 
 	def onPlay(self, videoTime):
 		"""
@@ -61,8 +68,8 @@ class TheHandy:
 		#print(data)
 
 		with requests.put(self.urlAPI + "/hssp/play", data=data, headers=self.connectionHeader) as r:
-			print(r.text)
-			return json.loads(r.text)
+			rtn = self.quickCheck(r)
+			return rtn
 
 	def onPause(self):
 		"""
@@ -70,7 +77,7 @@ class TheHandy:
 		"""
 
 		with requests.put(self.urlAPI + "/hssp/stop", headers=self.connectionHeader) as r:
-			rtn = json.loads(r.text)
+			rtn = self.quickCheck(r)
 			self.updateServerTime(num=1) #Might aswell update every once in a while
 			return rtn
 
@@ -85,7 +92,8 @@ class TheHandy:
 		})
 
 		with requests.put(self.urlAPI + "/hssp/offset", data=data, headers=self.connectionHeader) as r:
-			return json.loads(r.text)
+			rtn = self.quickCheck(r)
+			return rtn
 
 	def sysTime(self):
 		"""
@@ -104,8 +112,9 @@ class TheHandy:
 		with requests.get(self.urlAPI + "/hssp/sync", 
 			headers=headers
 		) as r:
-			rtn = json.loads(r.text)
+			rtn = self.quickCheck(r)
 			print("dtserver time: {}".format(rtn["dtserver"]))
+			return rtn
 
 	def getServerTime(self):
 		"""
@@ -127,7 +136,7 @@ class TheHandy:
 				Treceive = self.sysTime()
 				RTD = Treceive - Tsend
 
-				Ts = json.loads(r.text)["serverTime"]
+				Ts = self.quickCheck(r)["serverTime"]
 				Ts_est = Ts + (RTD / 2)
 
 				offset = Ts_est - Treceive
