@@ -1,11 +1,12 @@
 import requests, json, time, hashlib
-import sys, html, os, re
+import sys, html, os, re, collections
 
 class TheHandy:
 	def __init__(self):
 		self.numSync = 0
 		self.URL_BASE = "https://www.handyfeeling.com/" #TODO: Use staging instead of www when its fixed
 		self.URL_API_ENDPOINT = "api/handy/v2"
+		self.offsetQueue = collections.deque(maxlen=30)
 
 	def quickCheck(self, r):
 		assert r.status_code in range(200,299)
@@ -129,26 +130,28 @@ class TheHandy:
 		"""
 		url = self.urlAPI + "/servertime"
 
-		for i in range(0,num):
-			self.numSync = self.numSync + i
+		for i in range(self.numSync,self.numSync+num):
+			self.numSync += 1
 			Tsend = self.sysTime()
 			with requests.get(url) as r:
 				Treceive = self.sysTime()
-				RTD = Treceive - Tsend
 
+				#Round trip-time
+				RTT = Treceive - Tsend
+
+				#Get servertime
 				Ts = self.quickCheck(r)["serverTime"]
-				Ts_est = Ts + (RTD / 2)
 
+				#Given serverTime plus predicted server time
+				Ts_est = Ts + (RTT / 2)
+
+				#Difference between local time and server time
 				offset = Ts_est - Treceive
-				if (self.numSync == 0):
-					print("initial sync offset: {}".format(offset))
-					self.serverAvgOffset = offset
-				else:
-					#Iteratively calculate sum(offset)/len(offset)
-					self.serverAvgOffset = self.serverAvgOffset + ((offset - self.serverAvgOffset) / self.numSync)
 
-				print("Time sync reply (num, rtd, this offset): {}, {}, {}".format(i, RTD, offset))
+				self.offsetQueue.append(offset)
+				print("Time sync reply (num, rtt, this offset): {}, {}, {}".format(i, RTT, offset))
 
+		self.serverAvgOffset = sum(self.offsetQueue) / len(self.offsetQueue)
 		print("serverAvgOffset", self.serverAvgOffset)
 
 	def path_to_name(self, input_file):
