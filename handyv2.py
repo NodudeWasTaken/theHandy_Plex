@@ -2,6 +2,9 @@ import requests, json, time, hashlib
 import sys, html, os, re, collections
 
 class TheHandy:
+	"""
+	Updated for OAS3
+	"""
 	def __init__(self):
 		self.numSync = 0
 		self.URL_BASE = "https://www.handyfeeling.com/" #TODO: Use staging instead of www when its fixed
@@ -9,9 +12,11 @@ class TheHandy:
 		self.offsetQueue = collections.deque(maxlen=30)
 
 	def quickCheck(self, r):
+		print(r.text)
 		assert r.status_code in range(200,299)
 		rtn = json.loads(r.text)
 		assert rtn["result"] != -1 if "result" in rtn else True
+		assert not "error" in rtn
 		return rtn
 
 	#Set theHandy operation mode to video sync
@@ -38,11 +43,24 @@ class TheHandy:
 		self.deviceSync()
 		self.updateServerTime()
 
+	def get_digest(self, file_path):
+		h = hashlib.sha256()
+
+		with open(file_path, "rb") as file:
+			while True:
+				# Reading is buffered, so we can read smaller chunks.
+				chunk = file.read(h.block_size)
+				if not chunk:
+					break
+				h.update(chunk)
+
+		return h.hexdigest()
+
+
 	def setScript(self, scriptUrl, scriptHash=None):
 		"""
 		Upload a script to theHandy
 		"""
-		#scriptHash = hashlib.sha256(open(scriptPath).read().encode("utf-8")).hexdigest()
 
 		data = {
 			"url": scriptUrl,
@@ -63,8 +81,8 @@ class TheHandy:
 		"""
 
 		data = json.dumps({
-			"tserver": self.getServerTime(), #tserver
-			"tstream": videoTime #tstream
+			"estimatedServerTime": self.getServerTime(), #tserver, estimatedServerTime
+			"startTime": videoTime #tstream, startTime
 		})
 		#print(data)
 
@@ -104,9 +122,9 @@ class TheHandy:
 
 	def deviceSync(self):
 		"""
-		Supposedly finds the delay from theHandy to SweetTech's api
+		Supposedly finds the delay from theHandy to SweetTech's api (i think)
 		"""
-		headers = {"syncCount": "6"}
+		"""headers = {"syncCount": "6"}
 		for i in self.connectionHeader:
 			headers[i] = self.connectionHeader[i]
 
@@ -115,7 +133,7 @@ class TheHandy:
 		) as r:
 			rtn = self.quickCheck(r)
 			print("dtserver time: {}".format(rtn["dtserver"]))
-			return rtn
+			return rtn"""
 
 	def getServerTime(self):
 		"""
@@ -211,3 +229,4 @@ class TheHandy:
 				#fuckem
 				for i in jsn["actions"]:
 					fw.write("{},{}\r\n".format(i["at"],i["pos"]))
+

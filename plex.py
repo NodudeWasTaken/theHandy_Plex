@@ -1,6 +1,7 @@
 from flask import Flask, request, send_file
 from xml.dom import minidom
 from inspect import currentframe
+from plexapi.server import PlexServer
 from handyv2 import TheHandy
 import json, time, requests, os, sys
 
@@ -14,7 +15,7 @@ settings = {
 	"plex_ip": "127.0.0.1:32400",
 	"access_ip": "REPLACE_ME",
 	"view_offset": 0,
-	"dlna_offset": 0,
+	"pause_sync": False
 }
 
 #If there are no default settings
@@ -45,6 +46,9 @@ with open("settings.json", "r+") as f:
 
 
 app.secret_key = settings["app_secret"]
+
+#Nice api
+plex = PlexServer("http://" + settings["plex_ip"],settings["plex_token"])
 
 #Very real database, dont question it
 #We could easily support multiple handy users, but i don't see why i would do that
@@ -93,7 +97,7 @@ def plex_gettime(player_uuid):
 						if (playerelm.attributes["product"].value != "DLNA"):
 							return int(i.attributes["viewOffset"].value)
 						else:
-							return int(i.attributes["viewOffset"].value + settings["dlna_offset"])
+							return int(i.attributes["viewOffset"].value)# + int(settings["dlna_offset"])
 
 	return None
 
@@ -107,9 +111,11 @@ def plex_islocal(player_uuid):
 				for playerelm in i.getElementsByTagName("Player"):
 
 					if (playerelm.attributes["machineIdentifier"].value) == player_uuid:
-						return playerelm.attributes["local"].value == "1" or playerelm.attributes["product"].value == "DLNA"
+						if playerelm.attributes["product"].value == "DLNA":
+							return False
+						return playerelm.attributes["local"].value == "1"
 
-	return False
+	return None
 
 scripts = {}
 @app.route("/script/<name>", methods=["GET"])
@@ -129,7 +135,19 @@ def hasFunscript(video_file):
 
 	return None
 	
+def client_pause(player_uuid):
+	if (not settings["pause_sync"]):
+		return
+	for client in plex.clients():
+		if client.machineIdentifier == player_uuid:
+			client.pause()
 
+def client_play(player_uuid):
+	if (not settings["pause_sync"]):
+		return
+	for client in plex.clients():
+		if client.machineIdentifier == player_uuid:
+			client.play()
 
 @app.route("/", methods=["POST"])
 def index():
@@ -148,14 +166,24 @@ def index():
 				print("video_file: {}".format(video_file))
 				script_path = hasFunscript(video_file)
 				if (script_path != None):
+
+					scriptUrl = None
+					isLocal = plex_islocal(player_uuid)
+					if (isLocal == False):
+						print("Ignoring DLNA...")
+						return "OK"
+
 					print("funscript: {}".format(script_path))
+
 					database[player_uuid] = TheHandy()
+					
 					#TODO: What if this fails
 					#TODO: Keep instances as to avoid recalculating delay
 					print("onReady", database[player_uuid].onReady(settings["handy_key"]))
 
-					scriptUrl = None
-					if (settings["access_ip"] != "REPLACE_ME" and plex_islocal(player_uuid)):
+					client_pause(player_uuid)
+
+					if (settings["access_ip"] != "REPLACE_ME" and isLocal):
 						print("isLocal", True)
 						script_path, name = database[player_uuid].path_to_name(script_path)
 						scripts[player_uuid] = script_path
@@ -165,8 +193,9 @@ def index():
 						script_path, scriptUrl = database[player_uuid].upload_funscript(script_path)
 					print("scriptUrl", scriptUrl)
 
-					print("setScript", database[player_uuid].setScript(scriptUrl))
-					print("setOffset", database[player_uuid].setOffset(settings["view_offset"]))
+					script_hash = database[player_uuid].get_digest(script_path)
+					print("setScript", database[player_uuid].setScript(scriptUrl, scriptHash=script_hash))
+					#print("setOffset", database[player_uuid].setOffset(settings["view_offset"]))
 				else:
 					print("funscript: not found")
 			else:
@@ -175,13 +204,16 @@ def index():
 		if player_uuid in database:
 			viewOffset = plex_gettime(player_uuid)
 			print("onPlay", database[player_uuid].onPlay(viewOffset))
+			client_play(player_uuid) #For that perfect sync
 
 	if player_uuid in database:
 		if (parsed["event"] in ["media.pause", "media.stop"]):
 			print("onPause", database[player_uuid].onPause())
 		if (parsed["event"] in ["media.stop"]):
-			del database[player_uuid]
-			del scripts[player_uuid]
+			if player_uuid in database:
+				del database[player_uuid]
+			if player_uuid in scripts:
+				del scripts[player_uuid]
 
 	return "OK"
 
