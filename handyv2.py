@@ -19,6 +19,14 @@ class TheHandy:
 		assert not "error" in rtn
 		return rtn
 
+	def isReady(self):
+		"""
+		Get current mode
+		"""
+		with requests.get(self.urlAPI + "/hssp/state", headers=self.connectionHeader) as r:
+			rtn = self.quickCheck(r)
+			return rtn["state"] != 2
+
 	#Set theHandy operation mode to video sync
 	def onReady(self, connectionKey):
 		"""
@@ -40,22 +48,7 @@ class TheHandy:
 			rtn = self.quickCheck(r)
 			print("Mode request: {}".format(rtn))
 
-		self.deviceSync()
 		self.updateServerTime()
-
-	def get_digest(self, file_path):
-		h = hashlib.sha256()
-
-		with open(file_path, "rb") as file:
-			while True:
-				# Reading is buffered, so we can read smaller chunks.
-				chunk = file.read(h.block_size)
-				if not chunk:
-					break
-				h.update(chunk)
-
-		return h.hexdigest()
-
 
 	def setScript(self, scriptUrl, scriptHash=None):
 		"""
@@ -97,7 +90,7 @@ class TheHandy:
 
 		with requests.put(self.urlAPI + "/hssp/stop", headers=self.connectionHeader) as r:
 			rtn = self.quickCheck(r)
-			self.updateServerTime(num=1) #Might aswell update every once in a while
+			#self.updateServerTime(num=1) #Might aswell update every once in a while
 			return rtn
 
 	def setOffset(self, ms):
@@ -107,10 +100,10 @@ class TheHandy:
 		"""
 
 		data = json.dumps({
-			"offset": ms
+			"offset": int(ms)
 		})
 
-		with requests.put(self.urlAPI + "/hssp/offset", data=data, headers=self.connectionHeader) as r:
+		with requests.put(self.urlAPI + "/hstp/offset", data=data, headers=self.connectionHeader) as r:
 			rtn = self.quickCheck(r)
 			return rtn
 
@@ -119,21 +112,6 @@ class TheHandy:
 		Returns the current time in milliseconds
 		"""
 		return time.time() * 1000
-
-	def deviceSync(self):
-		"""
-		Supposedly finds the delay from theHandy to SweetTech's api (i think)
-		"""
-		"""headers = {"syncCount": "6"}
-		for i in self.connectionHeader:
-			headers[i] = self.connectionHeader[i]
-
-		with requests.get(self.urlAPI + "/hssp/sync", 
-			headers=headers
-		) as r:
-			rtn = self.quickCheck(r)
-			print("dtserver time: {}".format(rtn["dtserver"]))
-			return rtn"""
 
 	def getServerTime(self):
 		"""
@@ -170,63 +148,4 @@ class TheHandy:
 				print("Time sync reply (num, rtt, this offset): {}, {}, {}".format(i, RTT, offset))
 
 		self.serverAvgOffset = sum(self.offsetQueue) / len(self.offsetQueue)
-		print("serverAvgOffset", self.serverAvgOffset)
-
-	def path_to_name(self, input_file):
-		"""
-		Get the name of a script, and convert it to .csv if applicable
-		"""
-		if (input_file.endswith(".funscript")):
-			old_input_file = input_file
-			input_file = input_file.replace(".funscript", ".csv")
-			if (not os.path.exists(input_file)):
-				self.convert_funscript_to_csv(old_input_file, input_file)
-
-		filename = input_file[input_file.rfind("/")+1:]
-
-		#Fix weird naming bug
-		filename = "".join(re.findall(r"(\w+|\.)", filename)) #|\ 
-
-		return input_file, filename
-
-	def upload_funscript(self, input_file):
-		"""
-		Upload a script to handyfeelings hosting api and return the url
-
-		Handyfeeling rejects files over 2MB
-		So we convert to csv per default avoid that
-		Since it turns 2355KB into 127KB
-		"""
-		input_file, filename = self.path_to_name(input_file)
-
-		multipart_form_data = {
-			"syncFile": (filename, open(input_file, "rb")),
-		}
-
-		response = requests.post("https://www.handyfeeling.com/api/sync/upload?local=true", files=multipart_form_data)
-
-		#TODO: 413 Request entity too large
-		if (not response.status_code in range(200,299)):
-			print(response.text)
-			print(response.status_code)
-			return None
-
-		data = json.loads((response.content).decode("utf-8"))
-
-		print("handyfeeling", data, file=sys.stderr)
-
-		return input_file, html.unescape(data["url"])
-
-	def convert_funscript_to_csv(self, input_file,output_file):
-		"""
-		Convert a funscript to csv
-		"""
-		with open(input_file) as fr:
-			jsn = json.load(fr)
-			with open(output_file, "w") as fw:
-				fw.write("#Converted to CSV using script_converter.py")
-				#BUT WHAT ABOUT MUH SETTINGS
-				#fuckem
-				for i in jsn["actions"]:
-					fw.write("{},{}\r\n".format(i["at"],i["pos"]))
-
+		print("Handy server delay: {self.serverAvgOffset}")
