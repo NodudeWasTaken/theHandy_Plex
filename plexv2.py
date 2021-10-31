@@ -211,32 +211,6 @@ def plex_islocal(player_uuid):
 
 	return None
 
-#Attempts to find the plex client delay
-def client_delay(player_uuid):
-	if (not settings["pause_sync"]):
-		return 0
-
-	client = [i for i in plex.clients() if i.machineIdentifier == player_uuid]
-	if (len(client) <= 0):
-		return 0
-	client = client[0]
-	delays = []
-	for i in range(30):
-		start = time.time()
-
-		#TODO: Find altenative function
-		if (i % 2 == 0):
-			client.pause()
-		else:
-			client.play()
-
-		delay = (time.time() - start) / 2
-
-		delays.append(delay * 1000) #to milliseconds
-
-	return sum(delays) / len(delays)
-
-
 app = Flask(__name__)
 
 #Default settings
@@ -306,6 +280,7 @@ class PlexDelay:
 	def _auxRun(self, player_uuid):
 		client = [i for i in plex.clients() if i.machineIdentifier == player_uuid][0]
 
+		#Get command/device delay
 		times = []
 		for i in range(30):
 			when = time.time()
@@ -318,7 +293,10 @@ class PlexDelay:
 			print(f"Command sync: (num, rtt): {i} {rtt*1000}")
 			times.append(rtt)
 		self.command_delay = sum(times) / len(times)
+		time.sleep(1)
+		self.catched = False
 
+		#Get report delay (inconsistent)
 		times = []
 		for i in range(30):
 			when = time.time()
@@ -329,17 +307,18 @@ class PlexDelay:
 			while (not self.catched):
 				pass
 			self.catched = False
-			rtt = (time.time() - when) / 2
+			rtt = (time.time() - when) - self.command_delay
 			print(f"Report sync: (num, rtt): {i} {rtt*1000}")
 			times.append(rtt)
 			time.sleep(0.1)
 		self.report_delay = sum(times) / len(times)
+		time.sleep(1)
+		self.catched = False
 
 		print(f"Command delay: {self.command_delay*1000}ms\nReport delay: {self.report_delay*1000}ms")
-		time.sleep(1)
 		self.calculated=True
 	def totalDelay(self):
-		return (self.report_delay - self.command_delay) * 1000
+		return (self.report_delay + self.command_delay) * 1000
 	def run(self, player_uuid):
 		if (not settings["pause_sync"] or self.calculated):
 			return
