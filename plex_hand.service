@@ -7,7 +7,7 @@ Requires=plexmediaserver.service
 User=your_user
 Group=your_user
 WorkingDirectory=/install/folder
-ExecStart=python3 -u plex.py
+ExecStart=python3 -u plexv2.py
 Restart=on-failure
 RestartSec=3
 

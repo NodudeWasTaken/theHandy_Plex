@@ -246,7 +246,7 @@ settings = {
 	"handy_key": "REPLACE_ME",
 	"plex_ip": "127.0.0.1:32400",
 	"access_ip": "REPLACE_ME",
-	"view_offset": 0,
+	"view_offset": 50,
 	"pause_sync": False
 }
 
