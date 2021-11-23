@@ -126,8 +126,7 @@ class TheHandy:
 		"""
 		url = self.urlAPI + "/servertime"
 
-		for i in range(self.numSync,self.numSync+num):
-			self.numSync += 1
+		for i in range(0,num):
 			Tsend = self.sysTime()
 			with requests.get(url) as r:
 				Treceive = self.sysTime()
@@ -147,5 +146,6 @@ class TheHandy:
 				self.offsetQueue.append(offset)
 				print("Time sync reply (num, rtt, this offset): {}, {}, {}".format(i, RTT, offset))
 
+		self.numSync += num
 		self.serverAvgOffset = sum(self.offsetQueue) / len(self.offsetQueue)
 		print("Handy server delay: {self.serverAvgOffset}")

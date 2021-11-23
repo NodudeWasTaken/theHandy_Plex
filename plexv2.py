@@ -7,6 +7,17 @@ from tempfile import NamedTemporaryFile
 import tempfile, time, os, json, shutil, requests, sys, html, re, hashlib, threading
 
 #Classes
+class bcolors:
+	HEADER = '\033[95m'
+	OKBLUE = '\033[94m'
+	OKCYAN = '\033[96m'
+	OKGREEN = '\033[92m'
+	WARNING = '\033[93m'
+	FAIL = '\033[91m'
+	ENDC = '\033[0m'
+	BOLD = '\033[1m'
+	UNDERLINE = '\033[4m'
+
 
 class ScriptHandler:
 	"""
@@ -44,7 +55,7 @@ class ScriptHandler:
 			print("Uploaded to handyfeeling server")
 			http = self.upload_funscript(csv_path)
 			#TODO: These run out after some hours, account for that
-		print("Script url: ", http)
+		print(f"Script url: {http}")
 
 		self.db.append({
 			"id": _id,
@@ -66,7 +77,7 @@ class ScriptHandler:
 		return None,None
 	#Return if script exists
 	def hasScript(self, filepath):
-		fx = get_extless(file_loc)
+		fx = get_extless(filepath)
 		return os.path.exists(fx + ".funscript") or os.path.exists(fx + ".csv")
 	#Remove a given script
 	def removeScript(self, _id):
@@ -116,13 +127,12 @@ class ScriptHandler:
 
 		#TODO: 413 Request entity too large
 		if (not response.status_code in range(200,299)):
-			print(response.text)
-			print(response.status_code)
+			print(f"{bcolors.WARNING}{response.text}\n{response.status_code}{bcolors.ENDC}", file=sys.stderr)
 			return None
 
 		data = json.loads((response.content).decode("utf-8"))
 
-		print("handyfeeling", data, file=sys.stderr)
+		print(f"{bcolors.OKCYAN}handyfeeling {data}{bcolors.ENDC}", file=sys.stderr)
 
 		return html.unescape(data["url"])
 
@@ -132,7 +142,6 @@ class HandyDB:
 	"""
 	def __init__(self):
 		self.db = {}
-		self.timeout = 5 #hours
 	#Add a handy instance
 	def addInstance(self, _id):
 		self.clean()
@@ -150,19 +159,24 @@ class HandyDB:
 	#Yeah this sucks, get a small wrapper class, or anything else, please
 	def getHandy(self, _id):
 		self.db[_id]["time"] = time.time()
+
 		return self.db[_id]["handy"]
 	def getVideo(self, _id):
 		self.db[_id]["time"] = time.time()
+
 		return self.db[_id]["video"]
 	def setVideo(self, _id, data):
 		self.db[_id]["time"] = time.time()
+
 		self.db[_id]["video"] = data
 	def hasInstance(self, _id):
+		self.db[_id]["time"] = time.time()
+
 		self.clean()
 		return len([i for i in self.db if i == _id]) > 0
 	def clean(self):
 		for _id in self.db:
-			if ((time.time() - self.db[_id]["time"]) / 60 > self.timeout):
+			if ((time.time() - self.db[_id]["time"]) / 60 / 60 > settings["timeout"]):
 				del self.db[_id]
 
 #Support functions
@@ -177,8 +191,8 @@ def get_extless(filename):
 def plex_getvideofile(video_key):
 	data_url = "http://{}{}?X-Plex-Token={}".format(settings["plex_ip"], video_key, settings["plex_token"])
 	with requests.get(data_url) as r: #BUG: KeyError on non-video
-		print("Plex video data", r.text)
 		with minidom.parseString(r.text) as xmldoc:
+			print(f"{bcolors.OKCYAN}Plex video data {xmldoc.toprettyxml()}{bcolors.ENDC}")
 			part = xmldoc.getElementsByTagName("Part")
 			if (len(part) > 0):
 				return part[0].attributes["file"].value
@@ -189,8 +203,8 @@ def plex_getvideofile(video_key):
 def plex_gettime_old(player_uuid):
 	data_url = "http://{}/status/sessions?X-Plex-Token={}".format(settings["plex_ip"], settings["plex_token"])
 	with requests.get(data_url) as r:
-		#print("Plex session data", r.text)
 		with minidom.parseString(r.text) as xmldoc:
+			print(f"{bcolors.OKCYAN}Plex session data {xmldoc.toprettyxml()}{bcolors.ENDC}")
 			for i in xmldoc.getElementsByTagName("Video"):
 				for playerelm in i.getElementsByTagName("Player"):
 
@@ -221,6 +235,7 @@ settings = {
 	"plex_ip": "127.0.0.1:32400",
 	"access_ip": "REPLACE_ME",
 	"view_offset": 50,
+	"timeout": 2,
 	"pause_sync": False
 }
 
@@ -228,7 +243,7 @@ settings = {
 if not os.path.exists("settings.json"):
 	with open("settings.json", "w") as f:
 		json.dump(settings, f, indent="\t")
-	print("Please edit settings.json!")
+	print(f"{bcolors.WARNING}Please edit settings.json!{bcolors.ENDC}")
 	sys.exit(0)
 
 #Load user settings
@@ -242,7 +257,7 @@ with open("settings.json", "r+") as f:
 		settings["handy_key"],
 		settings["plex_ip"],
 	]):
-		print("Please edit settings.json!")
+		print(f"{bcolors.WARNING}Please edit settings.json!{bcolors.ENDC}")
 		sys.exit(1) #Its an error this time
 
 	#Update settings (if any new ones are present)
@@ -293,8 +308,12 @@ class PlexDelay:
 			print(f"Command sync: (num, rtt): {i} {rtt*1000}")
 			times.append(rtt)
 		self.command_delay = sum(times) / len(times)
-		time.sleep(1)
+		time.sleep(5) #Allow plenty of delay for plex
 		self.catched = False
+
+		#Dont allow less than zero (usually indicates a early fire from previous command)
+		print(f"Command delay: {self.command_delay*1000}")
+		self.command_delay = max(self.command_delay, 0)
 
 		#Get report delay (inconsistent)
 		times = []
@@ -304,7 +323,7 @@ class PlexDelay:
 				client.pause()
 			else:
 				client.play()
-			while (not self.catched):
+			while (not self.catched): #Busy wait
 				pass
 			self.catched = False
 			rtt = (time.time() - when) - self.command_delay
@@ -312,21 +331,23 @@ class PlexDelay:
 			times.append(rtt)
 			time.sleep(0.1)
 		self.report_delay = sum(times) / len(times)
-		time.sleep(1)
 		self.catched = False
+
+		print(f"Report delay: {self.report_delay*1000}")
+		self.report_delay = max(self.report_delay, 0)
 
 		print(f"Command delay: {self.command_delay*1000}ms\nReport delay: {self.report_delay*1000}ms")
 		self.calculated=True
 	def totalDelay(self):
+		if (not settings["pause_sync"]):
+			return settings["view_offset"]
+
 		return (self.report_delay + self.command_delay) * 1000
 	def run(self, player_uuid):
 		if (not settings["pause_sync"] or self.calculated):
 			return
 		self.isRunning = True
 		self._auxRun(player_uuid)
-		#thrd = threading.Thread(target=self._auxRun)
-		#thrd.start()
-		#thrd.join()
 		self.isRunning = False
 	def catch(self, event_type):
 		if (event_type in ["media.resume", "media.play", "media.pause"]):
@@ -356,8 +377,9 @@ def index():
 		return "OK"
 
 	#Plex data
-	print("Plex json data", json.dumps(parsed, indent='\t'))
-	print("Plex event type", event_type)
+	json_data = json.dumps(parsed, indent='\t')
+	print(f"{bcolors.OKCYAN}Plex json data {json_data}{bcolors.ENDC}")
+	print(f"{bcolors.OKCYAN}Plex event type {event_type}{bcolors.ENDC}")
 
 	#Any play event
 	if (event_type in ["media.resume", "media.play"]):
@@ -387,10 +409,10 @@ def index():
 				if (not handy_db.hasInstance(player_uuid) or not handy_db.getHandy(player_uuid).isReady()):
 					#Create new instance
 					handy_db.addInstance(player_uuid)
-					delay_c = PlexDelay()
+					delay_c.calculated = False
 					delay_c.run(player_uuid)
 					#Set offset
-					print("setOffset", handy_db.getHandy(player_uuid).setOffset(settings["view_offset"] + delay_c.totalDelay()))
+					print("setOffset", handy_db.getHandy(player_uuid).setOffset(delay_c.totalDelay()))
 
 				#If its a different video than last time, initialize
 				if (handy_db.getVideo(player_uuid) != video_uuid):
@@ -404,7 +426,7 @@ def index():
 			#And has same video (we didnt switch from scripted to non-scripted)
 			if (handy_db.getVideo(player_uuid) == video_uuid):
 				#Get viewOffset and play from there
-				viewOffset = plex_gettime_old(player_uuid) #TODO: Plex delay
+				viewOffset = plex_gettime_old(player_uuid)
 				print("onPlay", handy_db.getHandy(player_uuid).onPlay(viewOffset))
 
 	#If handy exists
