@@ -236,7 +236,7 @@ settings = {
 	"access_ip": "REPLACE_ME",
 	"view_offset": 50,
 	"timeout": 2,
-	"pause_sync": False
+	"pause_sync": True
 }
 
 #If there are no default settings
