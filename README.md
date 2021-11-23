@@ -14,30 +14,34 @@ Webhooks are a plex premium feature, you need to pay for it
 ## 3: Edit settings.json
 
 
-Set app_secret to a random string
+### Set app_secret to a random string
 
 
-Set plex_token (X-Plex-Token) to your plex_token, this can be found in your web f12 menu on the networks section when doing something on app.plex.tv.
+### Set plex_token (X-Plex-Token) to your plex_token, this can be found in your web f12 menu on the networks section when doing something on app.plex.tv.
 
 
-Set handy_key to your handy key.
+### Set handy_key to your handy key.
 
 
-Modify plex_ip to the plex server ip, if this script runs on a different ip, otherwise leave it be.
+### Modify plex_ip to the plex server's ip if this script runs on a different machine than the script, otherwise leave it be.
 
 
-Set access_ip, this should be the ip of the machine that runs plex script, this enables local script upload instead of uploading the script to the handyfeeling server and is recommended.
+### Set access_ip, this should be the lan ip of the machine that runs plex script, this enables local script upload instead of uploading the script to the handyfeeling server and is recommended.
 
 
-Set view_offset to 50 if not using pause_sync.
+### The view_offset is the handy latency offset.
 
 
-Set pause_sync if you want to use the experimental pause sync.
+### The timeout value is the number of hours to remember the handy's instance before forgetting.
 
 
-Pause sync attempts to find the plex webhook delay by sending pause and play commands to plex and recording the latency until it receives said webhook response again.
+### Set pause_sync if you want to use the pause sync.
 
-Also use 0 view_offset if using pause_sync, otherwise it will be way off.
+
+### Pause sync attempts to find the plex webhook delay by sending pause and play commands to plex and recording the latency until it receives said webhook response again.
+
+### Pause sync overrides the offset and is recommended
+
 
 
 ## 4: Add a webhook with http://127.0.0.1:8008 (or the ip of the machine running the script) as the address to plex.
