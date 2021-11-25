@@ -170,8 +170,6 @@ class HandyDB:
 
 		self.db[_id]["video"] = data
 	def hasInstance(self, _id):
-		self.db[_id]["time"] = time.time()
-
 		self.clean()
 		return len([i for i in self.db if i == _id]) > 0
 	def clean(self):
