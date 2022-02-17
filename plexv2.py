@@ -295,7 +295,7 @@ class PlexDelay:
 
 		#Get command/device delay
 		times = []
-		for i in range(30):
+		for i in range(16):
 			when = time.time()
 			if (i % 2 == 0):
 				client.pause()
@@ -305,6 +305,7 @@ class PlexDelay:
 			rtt = (time.time() - when) / 2
 			print(f"Command sync: (num, rtt): {i} {rtt*1000}")
 			times.append(rtt)
+			time.sleep(0.1)
 		self.command_delay = sum(times) / len(times)
 		time.sleep(5) #Allow plenty of delay for plex
 		self.catched = False
@@ -315,7 +316,7 @@ class PlexDelay:
 
 		#Get report delay (inconsistent)
 		times = []
-		for i in range(30):
+		for i in range(16):
 			when = time.time()
 			if (i % 2 == 0):
 				client.pause()
