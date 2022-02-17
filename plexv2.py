@@ -234,7 +234,7 @@ settings = {
 	"access_ip": "REPLACE_ME",
 	"view_offset": 50,
 	"timeout": 2,
-	"pause_sync": True
+	"pause_sync": False
 }
 
 #If there are no default settings
@@ -325,6 +325,7 @@ class PlexDelay:
 				pass
 			self.catched = False
 			rtt = (time.time() - when) - self.command_delay
+			#TODO: If less than 0, wait (some leftover event is firing)
 			print(f"Report sync: (num, rtt): {i} {rtt*1000}")
 			times.append(rtt)
 			time.sleep(0.1)
@@ -337,10 +338,7 @@ class PlexDelay:
 		print(f"Command delay: {self.command_delay*1000}ms\nReport delay: {self.report_delay*1000}ms")
 		self.calculated=True
 	def totalDelay(self):
-		if (not settings["pause_sync"]):
-			return settings["view_offset"]
-
-		return (self.report_delay + self.command_delay) * 1000
+		return int(self.report_delay * 1000)
 	def run(self, player_uuid):
 		if (not settings["pause_sync"] or self.calculated):
 			return
@@ -409,8 +407,9 @@ def index():
 					handy_db.addInstance(player_uuid)
 					delay_c.calculated = False
 					delay_c.run(player_uuid)
-					#Set offset
-					print("setOffset", handy_db.getHandy(player_uuid).setOffset(delay_c.totalDelay()))
+
+				if (settings["view_offset"]) != 0:
+					print("setOffset", handy_db.getHandy(player_uuid).setOffset(settings["view_offset"]))
 
 				#If its a different video than last time, initialize
 				if (handy_db.getVideo(player_uuid) != video_uuid):
@@ -425,6 +424,8 @@ def index():
 			if (handy_db.getVideo(player_uuid) == video_uuid):
 				#Get viewOffset and play from there
 				viewOffset = plex_gettime_old(player_uuid)
+				if (delay_c.calculated):
+					viewOffset += delay_c.totalDelay()
 				print("onPlay", handy_db.getHandy(player_uuid).onPlay(viewOffset))
 
 	#If handy exists
