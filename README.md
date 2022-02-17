@@ -5,55 +5,54 @@
 Webhooks are a plex premium feature, you need to pay for it
 
 # How to setup
-## 1: Git clone or download this branch**
+1: Git clone or download this branch**
 
 
-## 2: Run plexv2.py once
+2: Run plexv2.py once
 
 
-## 3: Edit settings.json
+3: Edit settings.json
 
 
-### Set app_secret to a random string
+  Set app_secret to a random string
 
 
-### Set plex_token (X-Plex-Token) to your plex_token, this can be found in your web f12 menu on the networks section when doing something on app.plex.tv.
+  Set plex_token (X-Plex-Token) to your plex_token, this can be found in your web f12 menu on the networks section when doing something on app.plex.tv.
 
 
-### Set handy_key to your handy key.
+  Set handy_key to your handy key.
 
 
-### Modify plex_ip to the plex server's ip if this script runs on a different machine than the script, otherwise leave it be.
+  Modify plex_ip to the plex server's ip if this script runs on a different machine than the script, otherwise leave it be.
+
+  Set access_ip, this should be the lan ip of the machine that runs plex script, this enables local script upload instead of uploading the script to the handyfeeling server and is recommended.
 
 
-### Set access_ip, this should be the lan ip of the machine that runs plex script, this enables local script upload instead of uploading the script to the handyfeeling server and is recommended.
+  The view_offset is the handy latency offset.
 
 
-### The view_offset is the handy latency offset.
+  The timeout value is the number of hours to remember the handy's instance before forgetting.
 
 
-### The timeout value is the number of hours to remember the handy's instance before forgetting.
+  Set pause_sync if you want to use the pause sync.
 
 
-### Set pause_sync if you want to use the pause sync.
+  Pause sync attempts to find the plex webhook delay by sending pause and play commands to plex and recording the latency until it receives said webhook response again.
 
-
-### Pause sync attempts to find the plex webhook delay by sending pause and play commands to plex and recording the latency until it receives said webhook response again.
-
-### Pause sync overrides the offset and is recommended
+  Pause sync overrides the offset and is recommended
 
 
 
-## 4: Add a webhook with http://127.0.0.1:8008 (or the ip of the machine running the script) as the address to plex.
+4: Add a webhook with http://127.0.0.1:8008 (or the ip of the machine running the script) as the address to plex.
 
 
-## 5: Install systemd service
+5: Install systemd service
 
 
 Copy the plex_hand.service file into /etc/systemd/system and edit the user, group and directory path.
 
 
-## 6: Done
+6: Done
 
 
 # How to use
