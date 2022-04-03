@@ -283,7 +283,6 @@ class PlexDelay:
 	def __init__(self):
 		self.isRunning = False
 		self.calculated = False
-		self.command_delay = 0
 		self.report_delay = 0
 		self.catched = False
 	def shouldCatch(self):
@@ -293,53 +292,33 @@ class PlexDelay:
 	def _auxRun(self, player_uuid):
 		client = [i for i in plex.clients() if i.machineIdentifier == player_uuid][0]
 
-		#Get command/device delay
+		#Get report delay
 		times = []
-		for i in range(16):
-			when = time.time()
+		for i in range(30):
+			when = time.time() #In seconds
 			if (i % 2 == 0):
 				client.pause()
 			else:
 				client.play()
 
-			rtt = (time.time() - when) / 2
-			print(f"Command sync: (num, rtt): {i} {rtt*1000}")
-			times.append(rtt)
-			time.sleep(0.1)
-		self.command_delay = sum(times) / len(times)
-		time.sleep(5) #Allow plenty of delay for plex
-		self.catched = False
-
-		#Dont allow less than zero (usually indicates a early fire from previous command)
-		print(f"Command delay: {self.command_delay*1000}")
-		self.command_delay = max(self.command_delay, 0)
-
-		#Get report delay (inconsistent)
-		times = []
-		for i in range(16):
-			when = time.time()
-			if (i % 2 == 0):
-				client.pause()
-			else:
-				client.play()
 			while (not self.catched): #Busy wait
 				pass
+
 			self.catched = False
-			rtt = (time.time() - when) - self.command_delay
+			rtt = (time.time() - when) * 1000 #In MS
 			#TODO: If less than 0, wait (some leftover event is firing)
-			print(f"Report sync: (num, rtt): {i} {rtt*1000}")
+			print(f"Report sync: (num, rtt): {i} {rtt}")
 			times.append(rtt)
 			time.sleep(0.1)
+
 		self.report_delay = sum(times) / len(times)
 		self.catched = False
 
-		print(f"Report delay: {self.report_delay*1000}")
 		self.report_delay = max(self.report_delay, 0)
-
-		print(f"Command delay: {self.command_delay*1000}ms\nReport delay: {self.report_delay*1000}ms")
+		print(f"Report delay: {self.report_delay}")
 		self.calculated=True
 	def totalDelay(self):
-		return int(self.report_delay * 1000)
+		return int(self.report_delay)
 	def run(self, player_uuid):
 		if (not settings["pause_sync"] or self.calculated):
 			return
