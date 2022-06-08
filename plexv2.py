@@ -33,17 +33,17 @@ class ScriptHandler:
 	def addScript(self, file_loc, _id, local=False):
 		fx = get_extless(file_loc)
 
-		csv_path = fx + ".csv"
 		tmp = NamedTemporaryFile()
+		
+		csv_path = fx + ".csv"
+		fun_path = fx + ".funscript"
 
-		if (not os.path.exists(csv_path)):
-			fun_path = fx + ".funscript"
-			assert os.path.exists(fun_path)
+		if (os.path.exists(fun_path)):
 			self.convert_funscript_to_csv(fun_path, tmp.name)
+		elif (os.path.exists(csv_path)):
+			shutil.copyfile(csv_path,tmp.name)
 		else:
-			with open(csv_path, "r") as fr:
-				with open(tmp.name, "w") as fw:
-					fw.write(fr.read())
+			return None
 
 		csv_path = tmp.name
 
@@ -178,19 +178,16 @@ class HandyDB:
 				del self.db[_id]
 
 #Support functions
-def get_extless(filename):
-	dot = filename.rfind(".")
-	if (dot == -1):
-		return filename
-	else:
-		return filename[:dot]
+def get_extless(input_file):
+	file_name, file_extension = os.path.splitext(input_file)
+	return file_name
 
 #Return video file path
 def plex_getvideofile(video_key):
 	data_url = "http://{}{}?X-Plex-Token={}".format(settings["plex_ip"], video_key, settings["plex_token"])
 	with requests.get(data_url) as r: #BUG: KeyError on non-video
 		with minidom.parseString(r.text) as xmldoc:
-			print(f"{bcolors.OKCYAN}Plex video data {xmldoc.toprettyxml()}{bcolors.ENDC}")
+			#print(f"{bcolors.OKCYAN}Plex video data {xmldoc.toprettyxml()}{bcolors.ENDC}")
 			part = xmldoc.getElementsByTagName("Part")
 			if (len(part) > 0):
 				return part[0].attributes["file"].value
@@ -199,16 +196,17 @@ def plex_getvideofile(video_key):
 
 #Return viewOffset in ms
 def plex_gettime_old(player_uuid):
+	when = time.time()
 	data_url = "http://{}/status/sessions?X-Plex-Token={}".format(settings["plex_ip"], settings["plex_token"])
 	with requests.get(data_url) as r:
 		with minidom.parseString(r.text) as xmldoc:
-			print(f"{bcolors.OKCYAN}Plex session data {xmldoc.toprettyxml()}{bcolors.ENDC}")
+			#print(f"{bcolors.OKCYAN}Plex session data {xmldoc.toprettyxml()}{bcolors.ENDC}")
 			for i in xmldoc.getElementsByTagName("Video"):
 				for playerelm in i.getElementsByTagName("Player"):
 
 					if playerelm.attributes["machineIdentifier"].value == player_uuid:
 						#if (playerelm.attributes["product"].value != "DLNA"):
-						return int(i.attributes["viewOffset"].value)
+						return int(i.attributes["viewOffset"].value) + int(time.time() - when)
 
 	return None
 
@@ -291,25 +289,29 @@ class PlexDelay:
 		return self.calculated
 	def _auxRun(self, player_uuid):
 		client = [i for i in plex.clients() if i.machineIdentifier == player_uuid][0]
+		#TODO: Check for error (len <= 0)
 
-		#Get report delay
 		times = []
-		for i in range(30):
-			when = time.time() #In seconds
-			if (i % 2 == 0):
-				client.pause()
-			else:
-				client.play()
+		if True:
+			#Get report delay
+			for i in range(30):
+				when = time.time() #In seconds
+				if (i % 2 == 0):
+					client.pause()
+				else:
+					client.play()
+				rtt = (time.time() - when) / 2
 
-			while (not self.catched): #Busy wait
-				pass
+				while (not self.catched): #Busy wait
+					pass
 
-			self.catched = False
-			rtt = (time.time() - when) * 1000 #In MS
-			#TODO: If less than 0, wait (some leftover event is firing)
-			print(f"Report sync: (num, rtt): {i} {rtt}")
-			times.append(rtt)
-			time.sleep(0.1)
+				self.catched = False
+				offset = when - rtt
+				offset = (time.time() - offset) * 1000 #In MS
+				#TODO: If less than 0, wait (some leftover event is firing)
+				print(f"Report sync: (num, rtt): {i} {offset}")
+				times.append(offset)
+				time.sleep(0.15)
 
 		self.report_delay = sum(times) / len(times)
 		self.catched = False
